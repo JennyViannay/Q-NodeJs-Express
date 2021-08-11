@@ -43,14 +43,26 @@ app.put("/api/movies/:id", (req, res) => {
         'UPDATE movies SET ? WHERE id = ?',
         [moviePropsToUpdate, movieId],
         (err) => {
-          if (err) {
-            console.log(err);
-            res.status(500).send('Error updating a movie');
-          } else {
-            res.status(200).send('Movie updated successfully 🎉');
-          }
+            if (err) {
+                console.log(err);
+                res.status(500).send('Error updating a movie');
+            } else {
+                res.status(200).send('Movie updated successfully 🎉');
+            }
         }
     );
+});
+
+app.delete("/api/movies/:id", (req, res) => {
+    const movieId = req.params.id;
+    connection.query("DELETE FROM movies WHERE id = ?", [movieId], (err) => {
+        if (err) {
+            console.log(err);
+            res.status(500).send("😱 Error deleting a movie");
+        } else {
+            res.status(200).send("🎉 Movie deleted!");
+        }
+    });
 });
 
 app.get("/api/users", (request, response) => {
@@ -82,14 +94,26 @@ app.put("/api/users/:id", (req, res) => {
         'UPDATE user SET ? WHERE id = ?',
         [userPropsToUpdate, userId],
         (err) => {
-          if (err) {
-            console.log(err);
-            res.status(500).send('Error updating a user');
-          } else {
-            res.status(200).send('User updated successfully 🎉');
-          }
+            if (err) {
+                console.log(err);
+                res.status(500).send('Error updating a user');
+            } else {
+                res.status(200).send('User updated successfully 🎉');
+            }
         }
     );
+});
+
+app.delete("/api/users/:id", (req, res) => {
+    const userId = req.params.id;
+    connection.query("DELETE FROM user WHERE id = ?", [userId], (err) => {
+        if (err) {
+            console.log(err);
+            res.status(500).send("😱 Error deleting an user");
+        } else {
+            res.status(200).send("🎉 User deleted!");
+        }
+    });
 });
 
 app.get("/api/movies/:id", (request, response) => {
