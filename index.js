@@ -35,6 +35,24 @@ app.post('/api/movies', (req, res) => {
     );
 });
 
+app.put("/api/movies/:id", (req, res) => {
+    const movieId = req.params.id;
+    const moviePropsToUpdate = req.body;
+    console.log(movieId);
+    connection.query(
+        'UPDATE movies SET ? WHERE id = ?',
+        [moviePropsToUpdate, movieId],
+        (err) => {
+          if (err) {
+            console.log(err);
+            res.status(500).send('Error updating a movie');
+          } else {
+            res.status(200).send('Movie updated successfully 🎉');
+          }
+        }
+    );
+});
+
 app.get("/api/users", (request, response) => {
     response.status(403).send('Access denied');
 });
@@ -52,6 +70,24 @@ app.post('/api/users', (req, res) => {
             } else {
                 res.status(201).send('User successfully saved');
             }
+        }
+    );
+});
+
+app.put("/api/users/:id", (req, res) => {
+    const userId = req.params.id;
+    const userPropsToUpdate = req.body;
+    console.log(userId);
+    connection.query(
+        'UPDATE user SET ? WHERE id = ?',
+        [userPropsToUpdate, userId],
+        (err) => {
+          if (err) {
+            console.log(err);
+            res.status(500).send('Error updating a user');
+          } else {
+            res.status(200).send('User updated successfully 🎉');
+          }
         }
     );
 });
