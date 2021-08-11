@@ -1,30 +1,16 @@
 const express = require('express');
-const dotenv = require('dotenv');
-const mysql = require('mysql')
-const movies = require("./movies");
-
-dotenv.config(process.cwd(), '.env');
-
-const connection = mysql.createConnection({
-    host: process.env.DB_HOST,
-    port : process.env.DB_PORT, 
-    user: process.env.DB_USER,
-    password: process.env.DB_PASS,
-    database: process.env.DB_NAME
-}) 
-
-connection.connect((err) => {
-    if (!err) {
-        console.log(`✅ -- MySql is connected to ${process.env.DB_NAME} database, port ${process.env.DB_PORT} -- ✅ `);
-    } else {
-        console.log("-- 👎 -- Error connecting MySql : -- 👎 -- ", err);
-    }
-});
+const connection = require("./db-config");
 
 const app = express();
 
 app.get("/api/movies", (request, response) => {
-    response.status(200).json(movies);
+    connection.query('SELECT * FROM movies', (err, result) => {
+        if (err) {
+            response.status(500).send('Error retrieving data from database');
+        } else {
+            response.status(200).json(result);
+        }
+    });
 });
 
 app.get("/api/users", (request, response) => {
@@ -49,7 +35,7 @@ app.get("/api/search", (request, response) => {
             }
         });
         response.status(200).json(results)
-    } 
+    }
     if (request.query.maxDuration < 100) {
         response.send(`No movie for this duration`);
     } else {
@@ -62,5 +48,5 @@ app.get("/", (request, response) => {
 });
 
 app.listen(process.env.SERVER_PORT, () => {
-    console.log(`Server is running on ${process.env.SERVER_PORT}`);
+    console.log(`✅  Server is running on ${process.env.SERVER_PORT}`);
 });
