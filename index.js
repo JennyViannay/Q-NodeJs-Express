@@ -39,6 +39,23 @@ app.get("/api/users", (request, response) => {
     response.status(403).send('Access denied');
 });
 
+app.post('/api/users', (req, res) => {
+    console.log(req.body)
+    const { firstname, lastname } = req.body;
+    connection.query(
+        'INSERT INTO user (firstname, lastname) VALUES (?, ?)',
+        [firstname, lastname],
+        (err, result) => {
+            if (err) {
+                console.log(err)
+                res.status(500).send('Error saving the user');
+            } else {
+                res.status(201).send('User successfully saved');
+            }
+        }
+    );
+});
+
 app.get("/api/movies/:id", (request, response) => {
     const movie = movies.find(movie => movie.id == request.params.id)
     if (movie) {
