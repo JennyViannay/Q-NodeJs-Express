@@ -8,12 +8,57 @@ app.use(bodyParser.urlencoded({
     extended: true
 }));
 
-app.get("/api/movies", (request, response) => {
-    connection.query('SELECT * FROM movies', (err, result) => {
+app.get('/api/users', (req, res) => {
+    let sql = 'SELECT * FROM users';
+    const sqlValues = [];
+    if (req.query.language) {
+        sql += ' WHERE language = ?';
+        sqlValues.push(req.query.language);
+    }
+    connection.query(sql, sqlValues, (err, results) => {
         if (err) {
-            response.status(500).send('Error retrieving data from database');
+            res.status(500).send('Error retrieving users from database');
         } else {
-            response.status(200).json(result);
+            res.json(results);
+        }
+    });
+});
+
+app.get("/api/movies", (req, res) => {
+    let sql = 'SELECT * FROM movies';
+    const sqlValues = [];
+    if (req.query.max_duration && req.query.color) {
+        sql += ' WHERE color = ? AND duration < ?';
+        sqlValues.push(req.query.color);
+        sqlValues.push(req.query.max_duration);
+    }
+    if (req.query.max_duration && !req.query.color) {
+        sql += ' WHERE duration < ?';
+        sqlValues.push(req.query.max_duration);
+    }
+    if (req.query.color && !req.query.max_duration) {
+        sql += ' WHERE color = ?';
+        sqlValues.push(req.query.color);
+    }
+    connection.query(sql, sqlValues, (err, results) => {
+        if (err) {
+            res.status(500).send(`Error retrieving movies from database ${err}`);
+        } else {
+            if (results.length) res.status(200).json(results);
+            else res.status(200).send('No movie found in your criteria');
+        }
+    });
+});
+
+app.get("/api/movies/:id", (req, res) => {
+    const movieId = req.params.id;
+    connection.query("SELECT * FROM movies WHERE id = ?", [movieId], (err, result) => {
+        if (err) {
+            res.status(500).send(`An error occurred: ${err.message}`);
+        }
+        else {
+            if (result.length) res.status(200).send(result[0]);
+            else res.status(404).send("Movie not found");
         }
     });
 });
@@ -26,7 +71,6 @@ app.post('/api/movies', (req, res) => {
         [title, director, year, color, duration],
         (err, result) => {
             if (err) {
-                console.log(err)
                 res.status(500).send('Error saving the movie');
             } else {
                 res.status(201).send('Movie successfully saved');
