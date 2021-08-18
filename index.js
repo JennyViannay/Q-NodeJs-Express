@@ -118,7 +118,6 @@ const verifyJWT = (req, res, next) => {
         if (err) res.json({ auth: false, message: "You failed to authenticate" });
         else req.userId = decoded.id; next();
     })
-
 };
 
 /**
@@ -279,7 +278,6 @@ app.get("/api/movies/:id", (req, res) => {
         else
             if (result.length) res.status(200).send(result[0]);
             else res.status(404).send('Movie not found');
-
     });
 });
 
