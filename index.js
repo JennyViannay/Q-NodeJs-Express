@@ -1,13 +1,142 @@
 const express = require('express');
+const cors = require('cors');
+
+const connection = require('./db-config');
+const jwt = require('jsonwebtoken');
+
 const bodyParser = require('body-parser');
+const cookieParser = require('cookie-parser');
+const session = require('express-session');
+
+const bcrypt = require('bcrypt');
+const saltRounds = 10;
+
 const Joi = require('joi');
-const connection = require("./db-config");
+
 const app = express();
 
 app.use(express.json());
-app.use(bodyParser.urlencoded({
-    extended: true
+app.use(bodyParser.urlencoded({ extended: false }));
+app.use(cors({
+    origin: ['*'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    credentials: true
 }));
+
+app.use(cookieParser());
+app.use(session({
+    key: 'userId',
+    secret: 'subcribe',
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+        expires: 60 * 60 * 24,
+    },
+}));
+
+//--------------------------------------------------------------------------------------------------------------- //
+//--------------------------------------------------------------------------------------------------------------- //
+//--------------------------------------------------------------------------------------------------------------- //
+// --------------------------------------------------- Auth ---------------------------------------------------- //
+
+/**
+ * Register User
+ */
+app.post('/api/register', (req, res) => {
+    const { email, password } = req.body;
+    const db = connection.promise();
+    let validateErrors = null;
+
+    db.query("SELECT * FROM jwt WHERE email = ?", [email])
+        .then(([result]) => {
+            if (result[0]) return Promise.reject('DUPLICATE_EMAIL');
+            validateErrors = Joi.object({
+                email: Joi.string().email().max(255).required(),
+                password: Joi.string().max(255).required(),
+            }).validate({ email, password }, { abortEarly: false }).error;
+            if (validateErrors) return Promise.reject('INVALID_DATA');
+            return db.query(
+                'INSERT INTO jwt (email, password) VALUES (?, ?)',
+                [email, bcrypt.hashSync(password, saltRounds)]
+            );
+        })
+        .then(([{ insertId }]) => {
+            res.status(201).json({ id: insertId, email });
+        })
+        .catch((err) => {
+            console.error('catch err ' + err);
+            if (err === 'DUPLICATE_EMAIL') res.status(409).json({ message: 'This email is already used' });
+            else if (err === 'INVALID_DATA') res.status(422).json({ validateErrors });
+            else res.status(500).send('Error saving the user');
+        });
+});
+
+/**
+ * Login User
+ */
+app.post('/api/login', (req, res) => {
+    const { email, password } = req.body;
+    const db = connection.promise();
+
+    db.query("SELECT * FROM jwt WHERE email = ?", [email])
+        .then(([result]) => {
+            if (!result[0]) return Promise.reject('INVALID_EMAIL');
+            if (!bcrypt.compareSync(password, result[0].password)) return Promise.reject('INVALID_PASSWORD');
+            const userId = result[0].id;
+            const token = jwt.sign({ userId }, "jwtSecret", {
+                expiresIn: 300,
+            })
+            req.session.user = result
+            return [result, token];
+        })
+        .then(([user, token]) => {
+            res.status(201).json({ auth: true, token: token, user: user });
+        })
+        .catch((err) => {
+            console.log(err)
+            if (err === 'INVALID_EMAIL') res.status(409).json({ message: 'Email doesn\'t exist' });
+            else if (err === 'INVALID_PASSWORD') res.status(409).json({ message: 'Wrong password !' });
+            else res.status(500).send('Error authenticate user');
+        });
+});
+
+/**
+ * Get isLogin User
+ */
+app.get('/api/login', (req, res) => {
+    if (req.session.user) res.send({ auth: true, user: req.session.user });
+    else res.send({ auth: false });
+})
+
+/**
+ * MiddleWare verifyJWT
+ */
+const verifyJWT = (req, res, next) => {
+    const token = req.headers["x-access-token"];
+    if (!token) res.send("You need a token, please give it to us next time!");
+    else jwt.verify(token, "jwtSecret", (err, decoded) => {
+        if (err) res.json({ auth: false, message: "You failed to authenticate" });
+        else req.userId = decoded.id; next();
+    })
+
+};
+
+/**
+ * Verify if User is Authenticate
+ */
+app.get('/api/isUserAuth', verifyJWT, (req, res) => {
+    res.send('You are login, congrats !');
+});
+
+/**
+ * Logout User
+ */
+app.get('/api/logout', (req, res) => {
+    if (req.session.user) req.session.destroy(() => {
+        res.status(204).send('You are logout !');
+    });
+    else res.status(404).send('lost');
+});
 
 //--------------------------------------------------------------------------------------------------------------- //
 //--------------------------------------------------------------------------------------------------------------- //
@@ -18,19 +147,15 @@ app.use(bodyParser.urlencoded({
  * Get Users with with optional query (language) 
  */
 app.get('/api/users', (req, res) => {
-    let sql = 'SELECT * FROM users';
+    let sql = 'SELECT * FROM user';
     const sqlValues = [];
     if (req.query.language) {
         sql += ' WHERE language = ?';
         sqlValues.push(req.query.language);
     }
     connection.query(sql, sqlValues, (err, results) => {
-        if (err) {
-            console.log(err);
-            res.status(500).send('Error retrieving users from database');
-        } else {
-            res.json(results);
-        }
+        if (err) res.status(500).send('Error retrieving users from database');
+        else res.status(200).json(results);
     });
 });
 
@@ -40,14 +165,10 @@ app.get('/api/users', (req, res) => {
 app.get('/api/users/:id', (req, res) => {
     const userId = req.params.id;
     connection.query("SELECT * FROM user WHERE id = ?", [userId], (err, result) => {
-        if (err) {
-            console.log(err);
-            res.status(500).send(`An error occurred: ${err.message}`);
-        }
-        else {
-            if (result.length) res.status(200).send(result[0]);
-            else res.status(404).send("User not found");
-        }
+        if (err) res.status(500).send(`An error occurred: ${err.message}`);
+        else
+            if (result.length) res.status(200).json(result[0]);
+            else res.status(404).send('User not found');
     });
 });
 
@@ -114,12 +235,8 @@ app.put("/api/users/:id", (req, res) => {
 app.delete("/api/users/:id", (req, res) => {
     const userId = req.params.id;
     connection.query("DELETE FROM user WHERE id = ?", [userId], (err) => {
-        if (err) {
-            console.log(err);
-            res.status(500).send("😱 Error deleting an user");
-        } else {
-            res.status(200).send("🎉 User deleted!");
-        }
+        if (err) res.status(500).send('😱 Error deleting an user');
+        else res.status(200).send('🎉 User deleted!');
     });
 });
 
@@ -144,13 +261,11 @@ app.get("/api/movies", (req, res) => {
         sqlValues.push(req.query.max_duration);
     }
     connection.query(sql, sqlValues, (err, results) => {
-        if (err) {
-            console.log(err);
+        if (err)
             res.status(500).send(`Error retrieving movies from database ${err}`);
-        } else {
+        else
             if (results.length) res.status(200).json(results);
             else res.status(200).send('No movie found in your criteria');
-        }
     });
 });
 
@@ -160,14 +275,11 @@ app.get("/api/movies", (req, res) => {
 app.get("/api/movies/:id", (req, res) => {
     const movieId = req.params.id;
     connection.query("SELECT * FROM movies WHERE id = ?", [movieId], (err, result) => {
-        if (err) {
-            console.log(err);
-            res.status(500).send(`An error occurred: ${err.message}`);
-        }
-        else {
+        if (err) res.status(500).send(`An error occurred: ${err.message}`);
+        else
             if (result.length) res.status(200).send(result[0]);
-            else res.status(404).send("Movie not found");
-        }
+            else res.status(404).send('Movie not found');
+
     });
 });
 
@@ -223,7 +335,7 @@ app.put("/api/movies/:id", (req, res) => {
         })
         .catch((err) => {
             console.error(err);
-            if (err === 'RECORD_NOT_FOUND') res.status(404).send(`Movie with id ${userId} not found.`);
+            if (err === 'RECORD_NOT_FOUND') res.status(404).send(`Movie with id ${movieId} not found.`);
             else res.status(500).send('Error updating a movie');
         });
 });
@@ -234,20 +346,16 @@ app.put("/api/movies/:id", (req, res) => {
 app.delete("/api/movies/:id", (req, res) => {
     const movieId = req.params.id;
     connection.query("DELETE FROM movies WHERE id = ?", [movieId], (err) => {
-        if (err) {
-            console.log(err);
-            res.status(500).send("😱 Error deleting a movie");
-        } else {
-            res.status(200).send("🎉 Movie deleted!");
-        }
+        if (err) res.status(500).send('😱 Error deleting a movie');
+        else res.status(200).send('🎉 Movie deleted!');
     });
 });
 
 /**
  * Get Home 
  */
-app.get("/", (request, response) => {
-    response.send("Welcome to my favourite movie list");
+app.get("/", (req, res) => {
+    res.send('Welcome to my favourite movie list');
 });
 
 /**
