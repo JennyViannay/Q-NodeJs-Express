@@ -196,7 +196,6 @@ app.post('/api/users', (req, res) => {
             res.status(201).json({ id: insertId, firstname, lastname, email });
         })
         .catch((err) => {
-            console.error(err);
             if (err === 'DUPLICATE_EMAIL')
                 res.status(409).json({ message: 'This email is already used' });
             else if (err === 'INVALID_DATA')
@@ -222,7 +221,6 @@ app.put("/api/users/:id", (req, res) => {
             res.status(200).json({ ...existingUser, ...req.body });
         })
         .catch((err) => {
-            console.error(err);
             if (err === 'RECORD_NOT_FOUND') res.status(404).send(`User with id ${userId} not found.`);
             else res.status(500).send('Error updating a user');
         });
@@ -308,7 +306,6 @@ app.post('/api/movies', (req, res) => {
             res.status(201).json({ id: insertId, title, director, year, color, duration });
         })
         .catch((err) => {
-            console.log(err)
             if (err === 'DUPLICATE_ENTRY') res.status(409).json({ message: "This title is already exist" });
             else if (err === 'INVALID_DATA') res.status(422).json({ validateErrors });
             else res.status(500).send('Error saving the movie');
@@ -332,7 +329,6 @@ app.put("/api/movies/:id", (req, res) => {
             res.status(200).json({ ...existingMovie, ...req.body });
         })
         .catch((err) => {
-            console.error(err);
             if (err === 'RECORD_NOT_FOUND') res.status(404).send(`Movie with id ${movieId} not found.`);
             else res.status(500).send('Error updating a movie');
         });
