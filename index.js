@@ -18,7 +18,7 @@ const app = express();
 app.use(express.json());
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(cors({
-    origin: ['*'],
+    origin: '*',
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
     credentials: true
 }));
@@ -26,7 +26,7 @@ app.use(cors({
 app.use(cookieParser());
 app.use(session({
     key: 'userId',
-    secret: 'subcribe',
+    secret: 'subscribe',
     resave: false,
     saveUninitialized: false,
     cookie: {
@@ -82,21 +82,20 @@ app.post('/api/login', (req, res) => {
         .then(([result]) => {
             if (!result[0]) return Promise.reject('INVALID_EMAIL');
             if (!bcrypt.compareSync(password, result[0].password)) return Promise.reject('INVALID_PASSWORD');
-            const userId = result[0].id;
+            const userId = result[0].email;
             const token = jwt.sign({ userId }, "jwtSecret", {
-                expiresIn: 300,
+                expiresIn: '365d',
             })
-            req.session.user = result
-            return [result, token];
+            req.session.user = result[0]
+            return [result[0], token];
         })
         .then(([user, token]) => {
-            res.status(201).json({ auth: true, token: token, user: user });
+            res.status(202).json({ auth: true, token: token, user: user });
         })
         .catch((err) => {
-            console.log(err)
-            if (err === 'INVALID_EMAIL') res.status(409).json({ message: 'Email doesn\'t exist' });
-            else if (err === 'INVALID_PASSWORD') res.status(409).json({ message: 'Wrong password !' });
-            else res.status(500).send('Error authenticate user');
+            if (err === 'INVALID_EMAIL') res.json({ message:'Email doesn\'t exist' }).status(401);
+            else if (err === 'INVALID_PASSWORD') res.json({ message: 'Wrong password !' }).status(409);
+            else res.send('Error authenticate user').status(500);
         });
 });
 
@@ -115,7 +114,7 @@ const verifyJWT = (req, res, next) => {
     const token = req.headers["x-access-token"];
     if (!token) res.send("You need a token, please give it to us next time!");
     else jwt.verify(token, "jwtSecret", (err, decoded) => {
-        if (err) res.json({ auth: false, message: "You failed to authenticate" });
+        if (err) res.json({ auth: false, message: "You failed to authenticate", err: err });
         else req.userId = decoded.id; next();
     })
 };
@@ -349,6 +348,7 @@ app.delete("/api/movies/:id", (req, res) => {
  * Get Home 
  */
 app.get("/", (req, res) => {
+    console.log(req.session.user)
     res.send('Welcome to my favourite movie list');
 });
 
