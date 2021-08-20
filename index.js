@@ -61,12 +61,15 @@ app.post('/api/register', (req, res) => {
             );
         })
         .then(([{ insertId }]) => {
-            res.status(201).json({ id: insertId, email });
+            const token = jwt.sign({ insertId }, "jwtSecret", {
+                expiresIn: '365d',
+            })
+            req.session.user = insertId;
+            res.status(202).json({ auth: true, token: token, user: insertId });
         })
         .catch((err) => {
-            console.error('catch err ' + err);
-            if (err === 'DUPLICATE_EMAIL') res.status(409).json({ message: 'This email is already used' });
-            else if (err === 'INVALID_DATA') res.status(422).json({ validateErrors });
+            if (err === 'DUPLICATE_EMAIL') res.json({ message: 'This email is already used' }).status(409);
+            else if (err === 'INVALID_DATA') res.json({ validateErrors }).status(422);
             else res.status(500).send('Error saving the user');
         });
 });
@@ -162,8 +165,8 @@ app.get('/api/users', (req, res) => {
  */
 app.get('/api/users/:id', (req, res) => {
     const userId = req.params.id;
-    connection.query("SELECT * FROM user WHERE id = ?", [userId], (err, result) => {
-        if (err) res.status(500).send(`An error occurred: ${err.message}`);
+    connection.query("SELECT * FROM jwt WHERE id = ?", [userId], (err, result) => {
+        if (err) res.send(`An error occurred: ${err.message}`).status(500);
         else
             if (result.length) res.status(200).json(result[0]);
             else res.status(404).send('User not found');
